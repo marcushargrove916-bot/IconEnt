@@ -1,0 +1,2 @@
+# A bundled FFmpeg binary for assembling short AI scenes into one movie on Render.
+imageio-ffmpeg>=0.5,<1

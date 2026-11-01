@@ -1,0 +1,17 @@
+# Render will require billing verification on some accounts even for Free.
+# FAL_KEY and APP_PASSWORD must be set in Render environment settings.
+services:
+  - type: web
+    name: one-hit-wonder-iconent
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt"
+    startCommand: "python3 server.py"
+    healthCheckPath: /healthz
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: FAL_KEY
+        sync: false
+      - key: APP_PASSWORD
+        sync: false

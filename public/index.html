@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#0b0a11">
+  <meta name="description" content="One Hit Wonder: imagine it, generate it, share it. An AI video studio in one click.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>One Hit Wonder — AI Video Studio</title>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Main navigation">
+      <a class="brand" href="/" aria-label="One Hit Wonder home"><span class="brand-mark">✦</span><span class="brand-name">ONE HIT<br><b>WONDER<span class="brand-dot">.</span></b></span></a>
+      <div class="side-label">WORKSPACE</div>
+      <nav class="nav-links" aria-label="Studio pages">
+        <button class="nav-link active" data-view="studio"><span class="nav-icon">◈</span> Create video <span class="nav-arrow">↗</span></button>
+        <button class="nav-link" data-view="library"><span class="nav-icon">▤</span> My creations <span id="libraryCount" class="nav-count">0</span></button>
+      </nav>
+      <div class="side-card"><span class="side-card-star">✧</span><div><b>Your idea is the star.</b><p>One prompt. One tap. One incredible video.</p></div></div>
+      <div class="side-footer"><span id="connectionDot" class="connection-dot"></span><span id="connectionText">Checking engine…</span></div>
+    </aside>
+
+    <div class="main-column">
+      <header class="topbar"><div class="topbar-left"><span class="eyebrow">AI VIDEO GENERATOR</span><span class="topbar-sep">/</span><span class="topbar-page" id="pageLabel">Create</span></div><div class="topbar-right"><span class="engine-pill">✦ <span>OMNI FLASH 1.1</span></span><span class="avatar">OH</span></div></header>
+
+      <main id="studioView" class="page studio-page">
+        <div class="headline-block"><div class="top-kicker"><span class="sparkle">✧</span> ICONENT PRESENTS · STREET CINEMA STUDIO <span class="small-glow"></span></div><h1>Your story. <span class="gradient-text">Your movie.</span></h1><p>Create gritty fictional neighborhood dramas, action movies and music films. Add your own character photos, direct every scene, and export a movie with audio.</p></div>
+        <div id="setupBanner" class="setup-banner" hidden><div class="setup-icon">⚡</div><div class="setup-description"><strong>One-time setup needed</strong><span>The studio is ready. Add your fal.ai API key to the server to unlock AI-generated videos.</span></div><a href="https://fal.ai/dashboard/keys" target="_blank" rel="noopener noreferrer">Get API key ↗</a></div>
+        <div class="studio-grid">
+          <section class="creation-panel panel" aria-labelledby="createLabel">
+            <div class="panel-header"><div><span class="section-index">01 / THE IDEA</span><h2 id="createLabel">What should we create?</h2></div><span class="mini-icon">✦</span></div>
+            <div class="mode-selector" role="group" aria-label="Production type"><button class="mode-choice selected" type="button" data-mode="clip" aria-pressed="true">◉ Quick clip</button><button class="mode-choice" type="button" data-mode="movie" aria-pressed="false">▣ Street movie</button></div>
+            <label class="input-label" id="promptLabel" for="prompt">DESCRIBE YOUR VIDEO</label>
+            <div class="prompt-wrap"><textarea id="prompt" maxlength="2500" spellcheck="true" placeholder="A cinematic music video of a rapper walking through neon-lit streets in Sacramento at night, dramatic lighting, camera tracking, realistic motion and bass-heavy atmosphere…"></textarea><span class="prompt-counter" id="charCounter">0 / 2,500</span></div>
+            <div class="inspiration-heading"><span>NEED INSPIRATION?</span><span class="inspo-arrow">↘</span></div>
+            <div class="prompt-chips" id="promptChips">
+              <button type="button" class="chip" data-prompt="Cinematic music video: a stylish independent hip-hop artist performing on a rooftop overlooking Sacramento at golden hour, wind moving his jacket, dramatic orbiting camera, realistic live-action motion, deep bass-driven instrumental, no visible words or logos."><span>🎤</span> Music video</button>
+              <button type="button" class="chip" data-prompt="A luxury streetwear fashion commercial: close-up details of premium black and violet hoodies worn by stylish models on a neon-lit city street at night, smooth gimbal tracking shots, slow-motion fabric movement, cinematic reflections, crisp professional advertisement, upbeat modern music, no words on screen."><span>👕</span> Clothing ad</button>
+              <button type="button" class="chip" data-prompt="A cinematic nighttime car scene: a glossy futuristic sports car cruises through the rain-soaked downtown streets of a fictional city, neon reflections on asphalt, dramatic low-angle tracking camera, realistic physics, atmospheric engine sounds, photorealistic film quality."><span>🏎️</span> Action scene</button>
+              <button type="button" class="chip" data-prompt="A sweet romantic short film: a couple meets unexpectedly under a rainy city awning at night, exchanged smiles, warm shop-window lights, authentic expressions, a graceful camera push-in, delicate ambient rain and gentle cinematic music, photorealistic."><span>💘</span> Love story</button>
+            </div>
+            <section class="cast-section" aria-labelledby="castHeading">
+              <div class="settings-heading"><div><span class="section-index">YOUR PEOPLE</span><h3 id="castHeading">Bring your own cast</h3></div><span class="settings-note">Up to 3 photos per render</span></div>
+              <p class="cast-desc">Use your own pictures as visual references for the lead characters. Keep the photos you want selected below.</p>
+              <label class="consent-line"><input type="checkbox" id="photoConsent"><span>I own these photos or have permission from the people pictured to use them for AI video.</span></label>
+              <label for="photoUpload" class="upload-button">＋ Add cast photos from iPhone <small>JPG, PNG, HEIC supported via conversion</small></label>
+              <input id="photoUpload" type="file" accept="image/*,.heic,.heif" multiple hidden>
+              <div id="photoGrid" class="cast-grid" aria-live="polite"><div class="cast-empty">No photos yet. The AI can also create fictional characters from your text.</div></div>
+              <p class="cast-privacy">Your photos are stored on this private server and sent to the video-generation provider when you render. Avoid photos you do not have permission to use.</p>
+            </section>
+            <section id="movieOptions" class="movie-options" hidden aria-labelledby="movieHeading">
+              <div class="settings-heading"><div><span class="section-index">DIRECTOR'S CUT</span><h3 id="movieHeading">Build your movie</h3></div><span class="settings-note">Multi-scene film</span></div>
+              <label class="field-stack" for="movieTitle">MOVIE TITLE<input id="movieTitle" maxlength="85" placeholder="Example: Ruthless — Streets Don't Sleep"></label>
+              <div class="two-settings"><label class="select-group"><span>STORY GENRE</span><select id="movieGenre"><option>Street crime drama</option><option>Neighborhood family drama</option><option>Romance &amp; betrayal</option><option>Fictional heist thriller</option><option>Hip-hop music drama</option><option>Action thriller</option></select></label><label class="select-group"><span>FILM LOOK</span><select id="movieTone"><option>Gritty realistic</option><option>Film noir</option><option>Blockbuster cinematic</option><option>Found-footage realism</option><option>90s street-film</option></select></label></div>
+              <div class="two-settings"><label class="select-group"><span>NUMBER OF SCENES</span><select id="sceneCount"><option value="3">3 scenes · teaser</option><option value="5" selected>5 scenes · short</option><option value="8">8 scenes · extended</option></select></label><div class="storyboard-trigger"><button id="buildStoryboard" class="small-action" type="button">✦ Build storyboard</button></div></div>
+              <div id="storyboard" class="storyboard"><div class="storyboard-empty">Write your story above and tap “Build storyboard” to create editable scene directions.</div></div>
+              <label class="consent-line cost-consent"><input type="checkbox" id="confirmMovieCost"><span>I understand each scene is a separate paid AI generation.</span></label>
+              <p class="cast-privacy">Fictional street stories, dramatic conflict, realistic dialogue and action are welcome where allowed by the provider. Provider safety rules still apply.</p>
+            </section>
+            <div class="divider"></div>
+            <div class="settings-heading"><div><span class="section-index">02 / THE LOOK</span><h3>Video settings</h3></div><span class="settings-note">Pick your vibe</span></div>
+            <div class="setting-label">FORMAT</div>
+            <div class="ratio-toggle" role="group" aria-label="Video aspect ratio"><button type="button" class="ratio-choice selected" data-ratio="9:16" aria-pressed="true"><span class="ratio-icon portrait"></span><span><b>Portrait</b><small>TikTok · Reels</small></span></button><button type="button" class="ratio-choice" data-ratio="16:9" aria-pressed="false"><span class="ratio-icon landscape"></span><span><b>Landscape</b><small>YouTube · Film</small></span></button></div>
+            <div class="two-settings"><label class="select-group"><span>DURATION</span><select id="duration"><option value="5">5 seconds</option><option value="8" selected>8 seconds</option><option value="10">10 seconds</option></select></label><label class="select-group"><span>QUALITY</span><select id="quality"><option value="360p">360p · economy</option><option value="720p" selected>720p · HD</option><option value="1080p">1080p · Full HD</option><option value="4k">4K · Ultra HD</option></select></label></div>
+            <div class="cost-line"><span id="costLabel">Estimated generation cost</span><strong id="costEstimate">$0.80</strong><span class="cost-info" title="fal.ai charges based on duration and resolution">ⓘ</span></div>
+            <button id="generateBtn" class="generate-btn"><span class="btn-sparkle">✦</span><span id="generateBtnText">Generate my video</span><span class="btn-trailing">↗</span></button>
+            <p class="below-button">Real AI footage uses paid generation credits. Movies consist of sequential short scenes edited into one MP4.</p>
+          </section>
+
+          <section class="preview-panel panel" aria-labelledby="previewTitle"><div class="panel-header preview-header"><div><span class="section-index">03 / THE MAGIC</span><h2 id="previewTitle">Your preview</h2></div><span id="previewBadge" class="preview-status"><span></span> READY FOR IDEAS</span></div>
+            <div class="preview-stage" id="previewStage"><div class="stage-lines"></div><div class="stage-ambient ambient-one"></div><div class="stage-ambient ambient-two"></div>
+              <div id="emptyPreview" class="empty-preview"><div class="preview-symbol"><span>✦</span><i></i></div><div class="empty-quote">Your characters.<br><em>Your story.</em></div><p>Your finished clip or movie plays here.<br>Add your cast, direct the scene, and generate.</p><div class="stage-bottom"><span>ONE HIT WONDER STUDIO</span><span>✧</span></div></div>
+              <div id="renderingPreview" class="rendering-preview" hidden><div class="loader-ring"><span>✦</span></div><h3>Making some magic…</h3><p id="renderStatus">Preparing your video…</p><div class="pulse-dots"><i></i><i></i><i></i></div><span class="render-disclaimer">Real AI renders can take several minutes.</span></div>
+              <div id="readyPreview" class="ready-preview" hidden><video id="resultVideo" controls playsinline preload="metadata" aria-label="AI-generated video"></video></div>
+            </div>
+            <div class="result-footer"><div class="result-info"><span class="tiny-wave">◢◣</span><div><strong id="resultTitle">Ready when you are</strong><small id="resultSub">Your creation starts with a single prompt</small></div></div><a class="download-btn" id="downloadBtn" href="#" hidden download><span>↓</span> Download MP4</a></div>
+            <div id="errorMessage" class="error-message" role="alert" hidden></div>
+            <div class="preview-tip"><span>✧</span><p><b>Director tip:</b> In Street movie mode, use your photos for recurring characters and edit each scene before rendering.</p></div>
+          </section>
+        </div>
+        <footer class="page-footer"><span>ICONENT · ONE HIT WONDER © 2026</span><span>TELL YOUR STORY <span class="footer-star">✦</span></span></footer>
+      </main>
+
+      <main id="libraryView" class="page library-page" hidden><div class="headline-block"><div class="top-kicker">✧ YOUR VIDEO VAULT</div><h1>Made by <span class="gradient-text">you.</span></h1><p>Every idea you've brought to life, all in one place. Saved videos are stored on this app server.</p></div><div class="library-top"><h2>Recent creations</h2><button id="libraryRefresh" class="small-action">↻ Refresh</button></div><div id="libraryGrid" class="library-grid"></div><div id="libraryEmpty" class="library-empty" hidden><div>✦</div><h3>Nothing here yet.</h3><p>Start creating. Your first video is one tap away.</p><button id="emptyCreate" class="small-action primary">Create a video ↗</button></div></main>
+    </div>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
