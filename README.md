@@ -1,5 +1,9 @@
-# IconEnt — One Hit Wonder AI
+# IconEnt · One Hit Wonder AI
 
-Sora-style, mobile-first AI text-to-video web app. Hosted on Render.
+Mobile-first AI text-to-video web app hosted on Render. Run with Python 3.10+.
 
-Server code and browser assets live in this repository. The video-generation service requires a private fal.ai API key, stored as a Render environment variable — never in GitHub.
+The application is packaged as `one-hit-wonder.tar.gz`. The Render build command extracts it with `tar -xzf one-hit-wonder.tar.gz`, and the start command is `python3 server.py`.
+
+Set `APP_PASSWORD` and `HOST=0.0.0.0` in Render; add secret `FAL_KEY` to activate paid AI renders. Never commit secret keys.
+
+Render Free storage is ephemeral; downloaded video files may disappear when the service restarts.
