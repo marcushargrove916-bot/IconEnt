@@ -42,12 +42,12 @@ Open `http://127.0.0.1:8080` in your web browser. If no `FAL_KEY` is configured,
 
 Source repository: `marcushargrove916-bot/IconEnt`.
 
-If this app is stored as `one-hit-wonder.tar.gz` in that GitHub repository, use:
+The app source files are present at the repository root. In Render, use:
 
 | Setting | Value |
 |--|--|
 | Runtime | Python |
-| Build command | `tar -xzf one-hit-wonder.tar.gz && pip install -r requirements.txt` |
+| Build command | `pip install -r requirements.txt` |
 | Start command | `python3 server.py` |
 | Health-check path | `/healthz` |
 | Plan | Free for testing, subject to Render billing requirements |
