@@ -225,6 +225,14 @@ async function init(){
   updatePromptCounter();estimate();
   try{
     const config=await api('/config');state.config=config;estimate();
+    if(config.business_mode){
+      try{
+        const auth=await api('/auth/me');
+        if(!auth.user){location.replace('/login?next=/studio');return}
+        $('#accountCredits').textContent=auth.user.role==='owner'?'✦ OWNER / ∞ CREDITS':`✦ ${auth.user.credits} CREDITS`;
+        if(auth.user.role==='owner')$('#studioOwnerLink').hidden=false;
+      }catch(err){location.replace('/login?next=/studio');return}
+    }
     $('#connectionDot').classList.add(config.ready?'online':'offline');
     $('#connectionText').textContent=config.ready?'AI movie engine connected':'API key setup needed';
     $('#setupBanner').hidden=!!config.ready;

@@ -25,6 +25,7 @@ import urllib.request
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from uuid import uuid4
+import business
 
 ROOT = Path(__file__).resolve().parent
 PUBLIC = ROOT / "public"
@@ -40,6 +41,7 @@ HOST = os.getenv("HOST", "127.0.0.1")
 PORT = int(os.getenv("PORT", "8080"))
 FAL_KEY = os.getenv("FAL_KEY", "").strip()
 APP_PASSWORD = os.getenv("APP_PASSWORD", "")
+BUSINESS_MODE = os.getenv("BUSINESS_MODE", "0") == "1"
 MAX_RUNNING = 2
 MAX_HISTORY = 70
 MAX_VIDEO_BYTES = 150 * 1024 * 1024
@@ -304,6 +306,8 @@ def generate_job(jid: str):
     except Exception as exc:
         logging.exception("Generation failed for %s", jid)
         update_job(jid, status="failed", progress="Unable to finish", error=str(exc)[:500])
+        if BUSINESS_MODE and job.get("credits_used", 0):
+            business.refund_render(job["user_id"], jid, job["credits_used"])
 
 
 def identify_image(data: bytes) -> tuple[str, str] | None:
@@ -316,13 +320,13 @@ def identify_image(data: bytes) -> tuple[str, str] | None:
     return None
 
 
-def validated_photo_ids(value) -> list[str]:
+def validated_photo_ids(value, user_id=None) -> list[str]:
     if not isinstance(value, list) or len(value) > MAX_PHOTOS_PER_JOB:
         raise ValueError("Select up to three cast photos")
     if len(set(value)) != len(value) or any(not isinstance(pid, str) or not re.fullmatch(r"[0-9a-f-]{36}", pid) for pid in value):
         raise ValueError("Invalid cast photo selection")
     with LOCK:
-        if any(pid not in PHOTO_LIBRARY for pid in value):
+        if any(pid not in PHOTO_LIBRARY or (user_id and PHOTO_LIBRARY[pid].get("user_id") != user_id) for pid in value):
             raise ValueError("One or more cast photos are no longer available")
     return value
 
@@ -330,13 +334,15 @@ def validated_photo_ids(value) -> list[str]:
 class Handler(BaseHTTPRequestHandler):
     server_version = "OneHitWonder/2.0"
 
-    def respond(self, status: int, payload):
+    def respond(self, status: int, payload, extra_headers=None):
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Length", str(len(body)))
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
@@ -347,6 +353,12 @@ class Handler(BaseHTTPRequestHandler):
         self.end_headers()
 
     def authed(self) -> bool:
+        if BUSINESS_MODE:
+            self.user = business.from_cookie(self.headers.get("Cookie", ""))
+            if not self.user:
+                self.respond(401, {"error": "Please sign in to your One Hit Wonder account.", "code": "LOGIN_REQUIRED"})
+                return False
+            return True
         if not APP_PASSWORD:
             return True
         auth = self.headers.get("Authorization", "")
@@ -429,23 +441,46 @@ class Handler(BaseHTTPRequestHandler):
         path = urllib.parse.urlsplit(self.path).path
         if path == "/healthz":
             return self.respond(200, {"ok": True})
-        if not self.authed():
+        if BUSINESS_MODE:
+            if path == "/api/pricing":
+                return self.respond(200, business.prices())
+            if path == "/api/auth/me":
+                user = business.from_cookie(self.headers.get("Cookie", ""))
+                return self.respond(200, {"user": user})
+            if path.startswith("/api/") and not self.authed():
+                return
+        elif not self.authed():
             return
+        if BUSINESS_MODE and path == "/api/account/summary":
+            with business.connect() as db:
+                credits = [dict(x) for x in db.execute("SELECT amount,reason,created_at FROM ledger WHERE user_id=? ORDER BY created_at DESC LIMIT 40", (self.user["id"],))]
+            return self.respond(200, {"user": self.user, "ledger": credits})
+        if BUSINESS_MODE and path == "/api/admin/stats":
+            if self.user["role"] != "owner":
+                return self.respond(403, {"error": "Owner account required"})
+            with LOCK:
+                jobs = list(JOBS.values())
+            return self.respond(200, business.admin_stats(jobs))
+        if BUSINESS_MODE and path == "/api/admin/users":
+            if self.user["role"] != "owner":
+                return self.respond(403, {"error": "Owner account required"})
+            return self.respond(200, {"users":business.admin_users()})
         if path == "/api/config":
             return self.respond(200, {"ready": bool(FAL_KEY), "engine": "Gemini Omni Flash 1.1",
                                       "rates": RATES, "max_running": MAX_RUNNING,
                                       "photo_mode": True, "movie_mode": True, "max_photos": MAX_PHOTOS_PER_JOB,
-                                      "max_scenes": MAX_SCENES, "movie_assembly": True})
+                                      "max_scenes": MAX_SCENES, "movie_assembly": True,
+                                      "business_mode": BUSINESS_MODE, "credit_pricing": True})
         if path == "/api/photos":
             with LOCK:
-                photos = sorted(PHOTO_LIBRARY.values(), key=lambda p: p["created_at"], reverse=True)
+                photos = sorted((p for p in PHOTO_LIBRARY.values() if not BUSINESS_MODE or p.get("user_id") == self.user["id"]), key=lambda p: p["created_at"], reverse=True)
             return self.respond(200, {"photos": photos})
         photo_match = re.fullmatch(r"/api/photos/([0-9a-f-]{36})", path)
         if photo_match:
             pid = photo_match.group(1)
             with LOCK:
                 photo = PHOTO_LIBRARY.get(pid)
-            if not photo:
+            if not photo or (BUSINESS_MODE and photo.get("user_id") != self.user["id"]):
                 return self.respond(404, {"error": "Photo not found"})
             file = PHOTOS / f"{pid}.{photo['extension']}"
             if not file.is_file():
@@ -453,19 +488,19 @@ class Handler(BaseHTTPRequestHandler):
             return self.stream_file(file, photo["mime"])
         if path == "/api/jobs":
             with LOCK:
-                jobs = sorted(JOBS.values(), key=lambda j: j["created_at"], reverse=True)[:24]
+                jobs = sorted((j for j in JOBS.values() if not BUSINESS_MODE or j.get("user_id") == self.user["id"]), key=lambda j: j["created_at"], reverse=True)[:24]
             return self.respond(200, {"jobs": jobs})
         job_match = re.fullmatch(r"/api/jobs/([0-9a-f-]{36})", path)
         if job_match:
             with LOCK:
                 job = JOBS.get(job_match.group(1))
-            return self.respond(200, {"job": job}) if job else self.respond(404, {"error": "Video not found"})
+            return self.respond(200, {"job": job}) if job and (not BUSINESS_MODE or job.get("user_id") == self.user["id"]) else self.respond(404, {"error": "Video not found"})
         video_match = re.fullmatch(r"/api/video/([0-9a-f-]{36})(?:/scene/([1-8]))?", path)
         if video_match:
             jid, scene = video_match.groups()
             with LOCK:
                 job = JOBS.get(jid)
-            if not job:
+            if not job or (BUSINESS_MODE and job.get("user_id") != self.user["id"]):
                 return self.respond(404, {"error": "Video not found"})
             if scene:
                 if f"/api/video/{jid}/scene/{scene}" not in job.get("completed_scenes", []):
@@ -479,8 +514,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self.respond(404, {"error": "Video is unavailable; host storage may have reset"})
             download = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("download") == ["1"]
             return self.stream_file(file, "video/mp4", download=download)
-        if path == "/":
-            path = "/index.html"
+        if BUSINESS_MODE:
+            path = {"/": "/index.html", "/studio": "/studio.html", "/pricing": "/pricing.html",
+                    "/dashboard": "/dashboard.html", "/admin": "/admin.html", "/login": "/login.html"}.get(path, path)
+        elif path == "/":
+            path = "/studio.html"
         pathname = (PUBLIC / path.lstrip("/")).resolve()
         if PUBLIC.resolve() not in pathname.parents or not pathname.is_file():
             return self.respond(404, {"error": "Not found"})
@@ -504,7 +542,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(404, {"error": "Not found"})
         pid = match.group(1)
         with LOCK:
-            photo = PHOTO_LIBRARY.pop(pid, None)
+            existing = PHOTO_LIBRARY.get(pid)
+            photo = PHOTO_LIBRARY.pop(pid, None) if existing and (not BUSINESS_MODE or existing.get("user_id") == self.user["id"]) else None
             if photo:
                 atomic_save(PHOTOS_FILE, PHOTO_LIBRARY)
         if photo:
@@ -531,21 +570,57 @@ class Handler(BaseHTTPRequestHandler):
             label = "My character photo"
         label = re.sub(r"[\x00-\x1f\x7f]", "", label).strip() or "My character photo"
         with LOCK:
-            if len(PHOTO_LIBRARY) >= MAX_PHOTO_LIBRARY:
+            if sum(not BUSINESS_MODE or p.get("user_id") == self.user["id"] for p in PHOTO_LIBRARY.values()) >= MAX_PHOTO_LIBRARY:
                 return self.respond(429, {"error": "Photo library is full. Delete an older photo first."})
             pid = str(uuid4())
             destination = PHOTOS / f"{pid}.{ext}"
             destination.write_bytes(data)
             photo = {"id": pid, "label": label, "extension": ext, "mime": mime, "bytes": len(data),
+                     "user_id": self.user["id"] if BUSINESS_MODE else None,
                      "created_at": timestamp(), "url": f"/api/photos/{pid}"}
             PHOTO_LIBRARY[pid] = photo
             atomic_save(PHOTOS_FILE, PHOTO_LIBRARY)
         return self.respond(201, {"photo": photo})
 
     def do_POST(self):
+        path = urllib.parse.urlsplit(self.path).path
+        if BUSINESS_MODE and path == "/api/stripe/webhook":
+            try:
+                size = int(self.headers.get("Content-Length", "0"))
+                if not 0 < size <= 100000:
+                    raise ValueError("Invalid webhook length")
+                payload = self.rfile.read(size)
+                return self.respond(200, business.handle_webhook(payload,self.headers.get("Stripe-Signature", "")))
+            except (ValueError, TypeError, KeyError) as exc:
+                return self.respond(400, {"error":str(exc)[:140]})
+        if BUSINESS_MODE and path in ("/api/auth/register", "/api/auth/login"):
+            try:
+                body = self.read_json()
+                if path.endswith("register"):
+                    business.create_user(body.get("email"),body.get("name"),body.get("password"),body.get("owner_code",""))
+                token, user = business.login(body.get("email"),body.get("password"))
+                return self.respond(200, {"user":user}, {"Set-Cookie":business.cookie(token)})
+            except (ValueError,TypeError) as exc:
+                return self.respond(400,{"error":str(exc)[:200]})
+        if BUSINESS_MODE and path == "/api/auth/logout":
+            business.logout(self.headers.get("Cookie", ""))
+            return self.respond(200,{"ok":True},{"Set-Cookie":business.cookie("",clear=True)})
         if not self.authed():
             return
-        path = urllib.parse.urlsplit(self.path).path
+        if BUSINESS_MODE and path == "/api/billing/checkout":
+            try:
+                body=self.read_json()
+                return self.respond(200,{"url":business.checkout(self.user["id"],body.get("sku"))})
+            except (ValueError,TypeError) as exc:
+                return self.respond(400,{"error":str(exc)[:220]})
+        if BUSINESS_MODE and path == "/api/admin/grant":
+            if self.user["role"] != "owner":return self.respond(403,{"error":"Owner account required"})
+            try:
+                body=self.read_json()
+                business.grant_credits(self.user["id"],body.get("user_id"),int(body.get("amount",0)))
+                return self.respond(200,{"ok":True})
+            except (ValueError,TypeError) as exc:
+                return self.respond(400,{"error":str(exc)[:150]})
         if path == "/api/photos":
             return self.upload_photo()
         if path not in ("/api/jobs", "/api/movies"):
@@ -560,7 +635,7 @@ class Handler(BaseHTTPRequestHandler):
             duration = body.get("duration", 8)
             if ratio not in ("9:16", "16:9") or quality not in RATES or type(duration) is not int or not 3 <= duration <= 10:
                 raise ValueError("Choose a valid format, quality and duration")
-            photo_ids = validated_photo_ids(body.get("photo_ids", []))
+            photo_ids = validated_photo_ids(body.get("photo_ids", []), self.user["id"] if BUSINESS_MODE else None)
             if photo_ids and body.get("photo_consent") is not True:
                 raise ValueError("Confirm you have permission to use the photos")
             if path == "/api/jobs":
@@ -603,6 +678,12 @@ class Handler(BaseHTTPRequestHandler):
                        "updated_at": timestamp(), "aspect_ratio": ratio, "resolution": quality,
                        "photo_ids": photo_ids, "cost_estimate": round(cost, 2),
                        "progress": "Preparing your production…", "video_url": None, "error": None, **record}
+                if BUSINESS_MODE:
+                    credits = business.credit_quote(kind,quality,duration,len(photo_ids),len(record.get("scenes",[])))
+                    charged = business.reserve_credits(self.user["id"],jid,credits,self.user["role"]=="owner")
+                    job["user_id"] = self.user["id"]
+                    job["credits_used"] = charged
+                    job["credit_quote"] = credits
                 JOBS[jid] = job
                 save_jobs()
             threading.Thread(target=generate_job, args=(jid,), daemon=True, name=f"movie-{jid[:8]}").start()
@@ -614,8 +695,10 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == "__main__":
     if not FAL_KEY:
         logging.warning("FAL_KEY missing: preview and photo library work, paid AI rendering unavailable")
-    if HOST == "0.0.0.0" and not APP_PASSWORD:
+    if HOST == "0.0.0.0" and not APP_PASSWORD and not BUSINESS_MODE:
         logging.warning("Set APP_PASSWORD before public deployment; photos are private user data")
+    if BUSINESS_MODE and not business.OWNER_INVITE_CODE:
+        logging.warning("OWNER_INVITE_CODE is missing: owner account cannot be created")
     httpd = ThreadingHTTPServer((HOST, PORT), Handler)
     logging.info("One Hit Wonder Street Cinema running on http://%s:%s", HOST, PORT)
     try:

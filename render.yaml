@@ -1,5 +1,5 @@
-# Render will require billing verification on some accounts even for Free.
-# FAL_KEY and APP_PASSWORD must be set in Render environment settings.
+# One Hit Wonder owner pilot. Do not open public signups until a durable database
+# and media storage, email verification, abuse controls and live billing are set.
 services:
   - type: web
     name: one-hit-wonder-iconent
@@ -11,7 +11,19 @@ services:
     envVars:
       - key: HOST
         value: 0.0.0.0
+      - key: BUSINESS_MODE
+        value: "1"
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: SIGNUPS_ENABLED
+        value: "0"
+      - key: CHECKOUT_ENABLED
+        value: "0"
+      - key: OWNER_EMAIL
+        sync: false
+      - key: OWNER_INVITE_CODE
+        sync: false
       - key: FAL_KEY
         sync: false
-      - key: APP_PASSWORD
+      - key: PUBLIC_BASE_URL
         sync: false
